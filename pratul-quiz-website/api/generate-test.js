@@ -1,4 +1,4 @@
-import pdf from 'pdf-parse'
+import { extractText, getDocumentProxy } from 'unpdf'
 
 function getGoogleDriveDirectUrl(url) {
   try {
@@ -38,11 +38,12 @@ export default async function handler(req, res) {
     }
 
     const arrayBuffer = await pdfResponse.arrayBuffer()
-    const buffer = Buffer.from(arrayBuffer)
+    const uint8Array = new Uint8Array(arrayBuffer)
 
     // Step 2: Extract text from the PDF
-    const pdfData = await pdf(buffer)
-    const noteText = pdfData.text.trim()
+    const pdfDoc = await getDocumentProxy(uint8Array)
+    const { text } = await extractText(pdfDoc, { mergePages: true })
+    const noteText = text.trim()
 
     if (!noteText || noteText.length < 50) {
       return res.status(502).json({ error: 'Could not extract readable text from this PDF. It may be a scanned image rather than text.' })
@@ -66,8 +67,9 @@ Respond with ONLY a valid JSON array, no other text, no markdown code fences. Fo
 STUDY NOTES:
 ${noteText.slice(0, 15000)}`
 
+    console.log('DEBUG API KEY:', JSON.stringify(process.env.GEMINI_API_KEY))
     const geminiResponse = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${process.env.GEMINI_API_KEY}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

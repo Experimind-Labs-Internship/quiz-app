@@ -191,9 +191,10 @@ export async function approveClassRequest(request) {
   })
 }
 
-export async function rejectClassRequest(requestId) {
+export async function rejectClassRequest(requestId, reason) {
   await updateDoc(doc(db, 'classRequests', requestId), {
-    status: 'rejected'
+    status: 'rejected',
+    rejectionReason: reason || ''
   })
 }
 
@@ -248,18 +249,21 @@ export async function generateTestFromNote({ driveUrl, className, subject, numQu
   })
   const data = await response.json()
   if (!response.ok) {
-    throw new Error(data.error || 'Failed to generate questions')
+  throw new Error((data.error || 'Failed to generate questions') + (data.details ? ': ' + data.details : ''))
   }
   return data.questions
 }
 
-export async function publishGeneratedQuiz({ quizId, className, subject, questions }) {
-  const existing = await getDoc(doc(db, 'quizzes', quizId))
-  const existingQuestions = existing.exists() ? existing.data().questions || [] : []
+export async function publishGeneratedQuiz({ noteTitle, className, subject, questions }) {
+  const quizId = `ai-${Date.now()}`
 
   await setDoc(doc(db, 'quizzes', quizId), {
     className,
     subject,
-    questions: [...existingQuestions, ...questions]
+    isAIGenerated: true,
+    sourceNoteTitle: noteTitle,
+    questions
   })
+
+  return quizId
 }
